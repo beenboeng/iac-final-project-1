@@ -1,0 +1,55 @@
+google_project_id: devops-505705 
+user: g700ghosty
+adc_path: /home/g700ghosty/.config/gcloud/application_default_credentials.json
+ssh_public_key: /home/g700ghosty/.ssh/id_ed25519.pub
+
+
+
+# Define the machine spec
+machine_spec:
+  large:
+    machine_type: "e2-standard-2"
+    zone: "asia-southeast1-c"
+    disk_size: 50
+    disk_type: pd-standard
+
+  small:
+    machine_type: "e2-medium"
+    zone: "asia-southeast2-a"
+    disk_size: 40
+    disk_type: pd-standard
+
+# Define OS
+ubuntu_spec:
+  v24: 
+    image: "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts"
+
+# Difine Machine info
+machine_info:
+  - name: "master01"
+    machine_type: "{{ machine_spec.large.machine_type }}"
+    zone: "{{ machine_spec.large.zone }}"
+    disk_size: "{{ machine_spec.large.disk_size }}"
+    disk_type: "{{ machine_spec.large.disk_type }}"
+    image: "{{ ubuntu_spec.v24.image }}"
+
+  - name: "master02"
+    machine_type: "{{ machine_spec.large.machine_type }}"
+    zone: "{{ machine_spec.large.zone }}"
+    disk_size: "{{ machine_spec.large.disk_size }}"
+    disk_type: "{{ machine_spec.large.disk_type }}"
+    image: "{{ ubuntu_spec.v24.image }}"
+
+  - name: "worker01"
+    machine_type: "{{ machine_spec.small.machine_type }}"
+    zone: "{{ machine_spec.small.zone }}"
+    disk_size: "{{ machine_spec.small.disk_size }}"
+    disk_type: "{{ machine_spec.small.disk_type }}"
+    image: "{{ ubuntu_spec.v24.image }}"
+
+  - name: "worker02"
+    machine_type: "{{ machine_spec.small.machine_type }}"
+    zone: "{{ machine_spec.small.zone }}"
+    disk_size: "{{ machine_spec.small.disk_size }}"
+    disk_type: "{{ machine_spec.small.disk_type }}"
+    image: "{{ ubuntu_spec.v24.image }}"
