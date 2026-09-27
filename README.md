@@ -1,4 +1,4 @@
-# DevOps Infrastructure as Code (IaC)
+# DevOps Infrastructure as Code (IaC) — Ansible Automation
 
 This project provides an **Infrastructure as Code (IaC)** solution for provisioning, configuring, and destroying a DevOps infrastructure environment using **Ansible** and **Docker**.
 
@@ -20,40 +20,44 @@ The infrastructure includes:
 
 Ansible is responsible for provisioning and configuring the machines, while Docker is used to run the application services.
 
-### Architecture
 
-```text
-                         Internet
-                            │
-                            ▼
-                    ┌────────────────┐
-                    │      Caddy     │
-                    │ Reverse Proxy  │
-                    │  HTTPS / TLS   │
-                    └───────┬────────┘
-                            │
-             ┌──────────────┼──────────────┐
-             │              │              │
-             ▼              ▼              ▼
-       jenkins.domain   nexus.domain   sonar.domain
-             │              │              │
-             ▼              ▼              ▼
-        ┌─────────┐    ┌─────────┐    ┌────────────┐
-        │ Jenkins │    │  Nexus  │    │ SonarQube  │
-        │ Docker  │    │ Docker  │    │   Docker   │
-        └─────────┘    └─────────┘    └────────────┘
-             │              │              │
-             └──────────────┼──────────────┘
-                            ▼
-                         Docker
-                            │
-              ┌─────────────┴─────────────┐
-              │                           │
-              ▼                           ▼
-         Portainer                  Other Services
+## 🏗️ Architecture Illustration
+
+```mermaid
+flowchart LR
+
+    A["💻 Local Machine<br/><b>Ansible Control Node</b><br/><br/>
+    • Write Playbooks<br/>
+    • Run Ansible Commands<br/>
+    • Manage Infrastructure"]
+
+    B(("⚙️<br/><b>Ansible</b><br/>Automation Engine"))
+
+    A -->|"SSH"| B
+
+    B -->|"SSH"| C
+    B -->|"SSH"| D
+    B -->|"SSH"| E
+
+    subgraph M["🖥️ Managed Machines — Remote Hosts"]
+
+        C["Machine 01<br/><br/>
+        🧑‍💻 Jenkins Server<br/>
+        CI/CD Pipeline<br/><br/>
+        🟢 Online"]
+
+        D["Machine 02<br/><br/>
+        🔍 SonarQube Server<br/>
+        Code Quality<br/><br/>
+        🟢 Online"]
+
+        E["Machine 03<br/><br/>
+        📦 Nexus Repository<br/>
+        Artifact Management<br/><br/>
+        🟢 Online"]
+
+    end
 ```
-
----
 
 # 🎯 Project Objectives
 
