@@ -1,0 +1,68 @@
+- name: Destroy GCP Instances for Jenkins / SonarQube / Nexus
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/machine-info.yml
+  vars:
+    # Firewall rules are free and shared, keep them unless asked:
+    # ansible-playbook playbooks/destroy-machine.yml -e delete_firewall=true
+    delete_firewall: false
+  tasks:
+
+  - name: Check Google application default credentials
+    stat:
+      path: "{{ adc_path }}"
+    register: adc_file
+
+  - name: Make sure credentials exist
+    assert:
+      that:
+        - adc_file.stat.exists
+      fail_msg: >-
+        Missing {{ adc_path }}.
+        Run 'gcloud auth application-default login' for credentials.
+
+  - name: Delete GCP instances
+    google.cloud.gcp_compute_instance:
+      name: "{{ item.name }}"
+      zone: "{{ item.zone }}"
+      project: "{{ google_project_id }}"
+      auth_kind: application
+      state: absent
+    environment: "{{ gcp_env }}"
+    loop: "{{ machine_info }}"
+    loop_control:
+      label: "{{ item.name }}"
+    register: deleted_instances
+
+  - name: Delete firewall rules
+    google.cloud.gcp_compute_firewall:
+      name: "{{ item }}"
+      project: "{{ google_project_id }}"
+      auth_kind: application
+      state: absent
+    environment: "{{ gcp_env }}"
+    loop:
+      - allow-ssh
+      - allow-http-https
+    when: delete_firewall | bool
+
+  - name: Reset inventory file
+    copy:
+      content: |
+        [localhost]
+        master ansible_host=localhost ansible_connection=local
+      dest: "{{ inventory_output }}"
+
+  - name: Remove gcp_instances.json
+    file:
+      path: "{{ playbook_dir }}/../gcp_instances.json"
+      state: absent
+
+  - name: Show destroyed machines
+    debug:
+      msg: "{{ item.item.name }} -> {{ 'deleted' if item.changed else 'not found (already gone)' }}"
+    loop: "{{ deleted_instances.results }}"
+    loop_control:
+      label: "{{ item.item.name }}"

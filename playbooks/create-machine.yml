@@ -1,0 +1,122 @@
+- name: Create GCP Instances for Jenkins / SonarQube / Nexus
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../vars/machine-info.yml
+  tasks:
+
+  - name: Check Google application default credentials
+    stat:
+      path: "{{ adc_path }}"
+    register: adc_file
+
+  - name: Check SSH public key
+    stat:
+      path: "{{ ssh_public_key }}"
+    register: ssh_key_file
+
+  - name: Make sure credentials and SSH key exist
+    assert:
+      that:
+        - adc_file.stat.exists
+        - ssh_key_file.stat.exists
+      fail_msg: >-
+        Missing {{ adc_path if not adc_file.stat.exists else ssh_public_key }}.
+        Run 'gcloud auth application-default login' for credentials,
+        or 'ssh-keygen -t ed25519' for the SSH key.
+
+  - name: Slurp the local public key
+    slurp:
+      src: "{{ ssh_public_key }}"
+    register: ssh_pub_key
+
+  - name: Create firewall rules (SSH + HTTP/HTTPS for Caddy)
+    google.cloud.gcp_compute_firewall:
+      name: "{{ item.name }}"
+      project: "{{ google_project_id }}"
+      auth_kind: application
+      state: present
+      # The firewall module prefixes ".../projects/<project>/" itself
+      network:
+        selfLink: "global/networks/default"
+      allowed:
+        - ip_protocol: tcp
+          ports: "{{ item.ports }}"
+      source_ranges:
+        - 0.0.0.0/0
+      target_tags: "{{ item.target_tags | default(omit) }}"
+    environment: "{{ gcp_env }}"
+    loop:
+      - name: allow-ssh
+        ports: ["22"]
+      - name: allow-http-https
+        ports: ["80", "443"]
+        target_tags: ["http-server", "https-server"]
+    loop_control:
+      label: "{{ item.name }}"
+
+  - name: Create GCP instance
+    google.cloud.gcp_compute_instance:
+      name: "{{ item.name }}"
+      machine_type: "{{ item.machine_type }}"
+      zone: "{{ item.zone }}"
+      project: "{{ google_project_id }}"
+      auth_kind: application
+      state: present
+      labels:
+        role: "{{ item.role }}"
+      metadata:
+        ssh-keys: "{{ user }}:{{ ssh_pub_key['content'] | b64decode }}"
+        startup-script: |
+          #!/bin/bash
+          apt-get update && apt-get upgrade -y
+      disks:
+        - auto_delete: true
+          boot: true
+          initialize_params:
+            source_image: "{{ item.image }}"
+            disk_size_gb: "{{ item.disk_size }}"
+            disk_type: "{{ item.disk_type }}"
+      network_interfaces:
+        - network:
+            selfLink: "{{ gcp_network }}"
+          access_configs:
+            - name: External NAT
+              type: ONE_TO_ONE_NAT
+      tags:
+        items:
+          - http-server
+          - https-server
+          - "{{ item.role }}"
+    environment: "{{ gcp_env }}"
+    loop: "{{ machine_info }}"
+    loop_control:
+      label: "{{ item.name }}"
+    register: gcp_instances
+
+  - name: Write gcp_instances into json file
+    copy:
+      content: "{{ gcp_instances | to_nice_json }}"
+      dest: "{{ playbook_dir }}/../gcp_instances.json"
+
+  - name: Update Inventory File using Jinja template
+    template:
+      src: ../templates/inventory.j2
+      dest: "{{ inventory_output }}"
+
+  - name: Wait for SSH on every machine
+    wait_for:
+      host: "{{ item.networkInterfaces[0].accessConfigs[0].natIP }}"
+      port: 22
+      timeout: 300
+    loop: "{{ gcp_instances.results }}"
+    loop_control:
+      label: "{{ item.item.name }}"
+
+  - name: Show created machines
+    debug:
+      msg: "{{ item.item.name }} ({{ item.item.role }}) -> {{ item.networkInterfaces[0].accessConfigs[0].natIP }}"
+    loop: "{{ gcp_instances.results }}"
+    loop_control:
+      label: "{{ item.item.name }}"

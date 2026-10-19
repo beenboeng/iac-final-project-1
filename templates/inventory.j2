@@ -1,0 +1,12 @@
+[localhost]
+master ansible_host=localhost ansible_connection=local
+
+{% for role in machine_info | map(attribute='role') | unique %}
+[{{ role }}]
+{% for inst in gcp_instances.results if inst.item.role == role and inst.networkInterfaces is defined %}
+{{ inst.item.name }} ansible_host={{ inst.networkInterfaces[0].accessConfigs[0].natIP }}
+{% endfor %}
+
+{% endfor %}
+[all:vars]
+ansible_user={{ user }}
